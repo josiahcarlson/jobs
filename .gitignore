@@ -21,6 +21,8 @@ parts/
 sdist/
 var/
 _docs/_build/
+_data/
+jobs_docs.zip
 *.egg-info/
 .installed.cfg
 *.egg
