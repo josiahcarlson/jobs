@@ -328,7 +328,7 @@ class ResourceManager(object):
         self.inputs = list(inputs)
         self.outputs = list(outputs)
         self.duration = max(duration, 0)
-        self.wait = max(wait, 0)
+        self.wait = max(wait or 0, 0)
         self.overwrite = overwrite
         self.last_refreshed = None
         self.prefix_identifier(identifier or _caller_name(_get_caller()))
@@ -1019,8 +1019,6 @@ def show_jobs(conn):
 def _fix_edge(e):
     return EDGE_RE.sub('*', e)
 
-_RKEY = lambda x: ''.join(reversed(list(x)))
-
 def edges(conn):
     '''
     Returns (inputs, outputs). Inputs are sorted by prefix, outputs are sorted
@@ -1071,28 +1069,48 @@ def _inputs(inputs, job):
 def _outputs(outputs, job):
     return _filter_left(outputs, _fix_edge(job))
 
+ARROW = ' -> '
+
 def print_edge(left, right, s):
     if not right:
-        left, _, right = left.partition(' -> ')
+        left, _, right = left.partition(ARROW)
     if not left.strip('*.') or not right.strip('*.'):
         return
     print('"%s" -> "%s"%s'%(left, right, s))
 
-def _traverse(out, jobs, s, conn=None):
-    inputs, outputs = edges(conn or CONN)
-    if out:
-        outputs.sort() # need to filter left
-    else:
-        inputs.sort(key=_RKEY) # need to filter right
 
-    known = set(jobs)
+def _traverse(out, je, s, conn=None):
+    inputs, outputs = edges(conn or CONN)
+    inputs.sort()
+    outputs.sort()
+
+    known = set([je])
     q = deque(known)
 
+    # je is a job identifier or an edge. Job identifiers are already handled
+    # in the main loop below, so we'll just handle job edges.
+
+    # These are identical algorithms, just in different directions on the
+    # graph edges. A better graph model would let us refactor, but if we're
+    # going to go that far, we may as well just add an ORM or similar for
+    # non-edge metadata.
+
+    if out:
+        for edge in _consumes(inputs, je):
+            left, _, right = edge.partition(ARROW)
+            print_edge(left, right, s)
+            if right not in known:
+                known.add(right)
+                q.append(right)
+    else:
+        for edge in _produces(outputs, je):
+            left, _, right = edge.partition(ARROW)
+            print_edge(left, right, s)
+            if left not in known:
+                known.add(left)
+                q.append(left)
+
     while q:
-        # These are identical algorithms, just in different directions on the
-        # graph edges. As such, arguments and print orders are reversed, which
-        # makes refactoring this annoying. So we won't. 7 lines for each isn't
-        # a big deal.
         it = q.popleft()
         if out:
             # outputs, so downstream
@@ -1149,26 +1167,6 @@ def handle_args(args):
         _force_unlock([], args.unlock_outputs)
         print(time.asctime(), "Unlocked.")
 
-    if args.produces:
-        inputs, outputs = edges(CONN)
-        for job in _produces(outputs, args.produces):
-            print(job)
-
-    if args.consumes:
-        inputs, outputs = edges(CONN)
-        for job in _consumes(inputs, args.consumes):
-            print(job)
-
-    if args.inputs_to:
-        inputs, outputs = edges(CONN)
-        for inp in _inputs(inputs, args.inputs_to):
-            print(inp)
-
-    if args.outputs_from:
-        inputs, outputs = edges(CONN)
-        for outp in _outputs(outputs, args.outputs_from):
-            print(outp)
-
     gout = args.graphviz and (args.upstream or args.downstream or args.display_all_edges_ever_known)
 
     s = ''
@@ -1212,13 +1210,15 @@ jobs if run without arguments.
 
 $ python -m jobs
 
+
 Want to know all downstream outputs and jobs from an input?
 
-$ python -m jobs --consumes input | xargs -n1 python -m jobs --downstream
+$ python -m jobs --downstream input
+
 
 Want to know what jobs and inputs are upstream from a given output?
 
-$ python -m jobs --produces output | xargs -n1 python -m jobs --upstream
+$ python -m jobs --upstream output
 
 
 
@@ -1227,33 +1227,26 @@ $ python -m jobs --produces output | xargs -n1 python -m jobs --upstream
 
 parser.add_argument('--graphviz', action='store_true', default=False,
     help="If edges are to be output, produce them in a format meant for graphviz 'dot' command")
-parser.add_argument('--display-all-edges-ever-known', action='store_true',
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--display-all-edges-ever-known', action='store_true',
     default=False, help="Print all input/output edges known about (useful for debugging)")
 
-parser.add_argument('--produces',
-    help="Print the list of upstream job(s) that produced this output")
-parser.add_argument('--consumes',
-    help="Print the list of downstream job(s) that consumed this input")
-parser.add_argument('--inputs-to',
-    help="Print the list of inputs that have ever been provided to this job")
-parser.add_argument('--outputs-from',
-    help="Print the list of outputs that have ever been produced by this job")
-parser.add_argument('--upstream', nargs='*',
+group.add_argument('--upstream',
     help="Print the list of all upstream jobs and inputs from the provided job "
-         "identifier, in a breadth-first traversal")
-parser.add_argument('--downstream', nargs='*',
+         "identifier, input, or output, in a breadth-first traversal")
+group.add_argument('--downstream',
     help="Print the list of all downstream jobs and outputs from the provided "
-         "job identifier, in a breadth-first traversal")
+         "job identifier, input, or output, in a breadth-first traversal")
 
-parser.add_argument('--fail',
-    help="Unlock all inputs and outputs related to the provided job id, DO NOT write outputs")
-parser.add_argument('--finish',
+group.add_argument('--finish',
     help="Unlock all inputs and outputs related to the provided job id, DO write outputs")
-parser.add_argument('--unlock-inputs', nargs='*',
+group.add_argument('--fail',
+    help="Unlock all inputs and outputs related to the provided job id, DO NOT write outputs")
+group.add_argument('--unlock-inputs', nargs='*',
     help="Unlocks the provided inputs")
-parser.add_argument('--unlock-outputs', nargs='*',
+group.add_argument('--unlock-outputs', nargs='*',
     help="Unlocks the provided outputs")
-parser.add_argument('--create-outputs', nargs='*',
+group.add_argument('--create-outputs', nargs='*',
     help="Unlocks and sets the provided outputs")
 
 def main():

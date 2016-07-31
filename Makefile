@@ -26,11 +26,10 @@ install:
 	python setup.py install
 
 test:
-	#python2.6 -m tests.test_jobs
-	python2.7 -m tests.test_jobs
-	python3.3 -m tests.test_jobs
-	python3.4 -m tests.test_jobs
-	python3.5 -m tests.test_jobs
+	python2.7 -m test_jobs
+	python3.3 -m test_jobs
+	python3.4 -m test_jobs
+	python3.5 -m test_jobs
 
 upload:
 	git tag `cat VERSION`
