@@ -211,7 +211,7 @@ import redis.exceptions
 VERSION = '0.25.0'
 
 # user-settable configuration
-CONN = redis.Redis(db=1)#None
+CONN = None
 GLOBAL_PREFIX = ''
 GRAPH_HISTORY = True
 # end user-settable configuration
