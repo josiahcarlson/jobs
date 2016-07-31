@@ -17,14 +17,14 @@ Features
 ========
 
 Input/output locking on multiple *named* keys, called "inputs" and "outputs":
-* All keys are case-sensitive
-* Multiple readers on input keys
-* Exclusive single writer on output keys (no readers or other writers)
-* All inputs must have been an output previously
-* Optional global and per-job history of sanitized input/output edges (enabled
-  by default)
-* Lock multiple inputs and outputs simultaneously, e.g. to produce outputs Y and
-  Z, I need to consume inputs A, B, C.
+ * All keys are case-sensitive
+ * Multiple readers on input keys
+ * Exclusive single writer on output keys (no readers or other writers)
+ * All inputs must have been an output previously
+ * Optional global and per-job history of sanitized input/output edges (enabled
+   by default)
+ * Lock multiple inputs and outputs simultaneously, e.g. to produce outputs Y and
+   Z, I need to consume inputs A, B, C.
 
 How to use
 ==========
