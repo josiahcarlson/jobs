@@ -9,7 +9,7 @@ import jobs
 
 import redis
 
-CONN = redis.Redis(db=15)
+jobs.CONN = CONN = redis.Redis(db=15)
 
 
 NG = jobs.NG.test[int(time.time())*1000000 + random.randrange(1000000)]
@@ -149,7 +149,7 @@ class TestJobs(unittest.TestCase):
             self.assertTrue(CONN.exists(NG.output2))
 
     def test_5_lost_lock(self):
-        with jobs.ResourceManager([NG.input1, NG.input2], [NG.output1], 1, conn=CONN) as job:
+        with jobs.ResourceManager([NG.input1, NG.input2], [NG.output1], 1) as job:
             time.sleep(2)
             self.assertEqual(job.refresh(), {'ok':True, 'temp': {
                 'output_lock_lost': [NG.output1], 'input_lock_lost': [NG.input1, NG.input2]

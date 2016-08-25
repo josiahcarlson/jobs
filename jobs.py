@@ -249,7 +249,9 @@ import traceback
 
 import redis.exceptions
 
-VERSION = '0.25.1'
+_all = set(globals())
+
+VERSION = '0.25.6'
 
 # user-settable configuration
 CONN = None
@@ -503,7 +505,7 @@ class ResourceManager(object):
 
     def _start(self, conn, auto_refresh, **kwargs):
         self.conn = conn or self.conn or CONN
-        if not conn:
+        if not self.conn:
             raise RuntimeError("Cannot start a job without a connection to Redis!")
 
         if self.is_running:
@@ -1256,7 +1258,9 @@ def handle_args(args):
     if not other:
         show_jobs(CONN)
 
-parser = argparse.ArgumentParser(description='''
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog='''
 This module intends to offer the ability to lock inputs and outputs in the
 context of data flows, data pipelines, etl flows, job flows, and general
 multi-locking.
@@ -1265,19 +1269,25 @@ multi-locking.
 If run as a script, this module will print the list of currently known running
 jobs if run without arguments.
 
-$ python -m jobs
+$ python {0}
 
 
-Want to know all downstream outputs and jobs from an input?
+Want to know all downstream outputs and jobs from an input, output, or
+identifier?
 
-$ python -m jobs --downstream input
+$ python {0} --downstream input
+$ python {0} --downstream output
+$ python {0} --downstream identifier
 
 
-Want to know what jobs and inputs are upstream from a given output?
+Want to know what jobs and inputs are upstream from a given input, output, or
+identifier?
 
-$ python -m jobs --upstream output
+$ python {0} --upstream input
+$ python {0} --upstream output
+$ python {0} --upstream identifier
 
-''')
+'''.format(sys.argv[0] or 'jobs.py'))
 
 parser.add_argument('--graphviz', action='store_true', default=False,
     help="If edges are to be output, produce them in a format meant for graphviz 'dot' command")
@@ -1307,6 +1317,8 @@ def main():
     global ARGS
     ARGS = parser.parse_args()
     handle_args(ARGS)
+
+__all__ = list(set(globals()) - _all)
 
 if __name__ == '__main__':
     main()
