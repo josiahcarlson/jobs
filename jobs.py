@@ -173,10 +173,10 @@ All configuration options are available as options on the jobs.py module itself,
 though you *can* override the connection explicitly on a per-job basis. See the
 'Connection configuration' section below for more details.::
 
-    # The Redis connection
+    # The Redis connection, REQUIRED!
     jobs.CONN = redis.Redis()
 
-    # Sets a prefix to be used on all keys stored in Redis
+    # Sets a prefix to be used on all keys stored in Redis (optional)
     jobs.GLOBAL_PREFIX = ''
 
     # Keep a sanitized ZSET of inputs and outputs, available for traversal
@@ -185,6 +185,47 @@ though you *can* override the connection explicitly on a per-job basis. See the
     # ... which allows you to get a compact flow graph even in cases where you
     # have day-parameterized builds.
     jobs.GRAPH_HISTORY = True
+
+    # To use a logger that doesn't print to standard output, set the logging
+    # object at the module level (see below). By default, the built-in "default
+    # logger" prints to standard output.
+    jobs.DEFAULT_LOGGER = logging.getLogger(...)
+
+Using jobs.py with a custom Redis configuration
+===============================================
+
+If you would like to use jobs.py as a script (for the convenient command-line
+options), you need to create a wrapper module, which can also act as your
+general configuration updates for jobs.py (hack because I needed to release
+this as open-source before the end of summer)::
+
+
+    # myjobs.py
+    import jobs
+    jobs.CONN = ...
+    jobs.DEFAULT_LOGGER = ...
+    jobs.GLOBAL_PREFIX = ...
+    jobs.GRAPH_HISTORY = ...
+
+    from jobs import *
+
+    if __name__ == '__main__':
+        main()
+
+Then you can use this as...
+
+    $ python myjobs.py --help
+
+
+And you can use ``myjobs.py`` everywhere, which will have all of your
+configuration handled.
+
+    # daily_report.py
+    import myjobs
+
+    @myjobs.resource_manager(...)
+    def daily_reporting(job, ...):
+        # exactly the same as before.
 
 '''
 
@@ -214,6 +255,7 @@ VERSION = '0.25.0'
 CONN = None
 GLOBAL_PREFIX = ''
 GRAPH_HISTORY = True
+DEFAULT_LOGGER = None # actually set below, see BullshitLog()
 # end user-settable configuration
 
 EDGE_RE = re.compile('[0-9][0-9-]*')
@@ -261,7 +303,7 @@ NG = NG()
 @atexit.register
 def _signal_handler(*args, **kwargs):
     for m in list(LOCKED):
-        m.stop(failed=True)
+        m.stop(failed=True, shutting_down=True)
     if args:
         # call the old handler, as necessary
         if OLD_SIGNAL:
@@ -270,6 +312,18 @@ def _signal_handler(*args, **kwargs):
 
 # register new signal handler, and keep reference to the old one (if any)
 OLD_SIGNAL = signal.signal(signal.SIGTERM, _signal_handler)
+
+ATEXIT_SET = False
+SIGNAL_SET = False
+OLD_SIGNAL = None
+
+def handle_auto_shutdown():
+    global ATEXIT_SET, SIGNAL_SET, OLD_SIGNAL
+    if not ATEXIT_SET:
+        ATEXIT_SET = atexit.register(_signal_handler)
+
+    if not SIGNAL_SET and isinstance(threading.currentThread(), threading._MainThread):
+        SIGNAL_SET, OLD_SIGNAL = True, signal.signal(signal.SIGTERM, _signal_handler)
 
 def resource_manager(inputs, outputs, duration, wait=None, overwrite=True,
         conn=None, graph_history=_GHD, suffix=None):
@@ -524,7 +578,7 @@ class ResourceManager(object):
         '''
         return self.last_refreshed is not None
 
-    def stop(self, failed=False):
+    def stop(self, failed=False, shutting_down=False):
         '''
         Stops a job if running. If the optional "failed" argument is true,
         outputs will not be set as available.
@@ -536,6 +590,8 @@ class ResourceManager(object):
                     return
                 failed = bool(failed)
                 DEFAULT_LOGGER.info("Stopping job failed = %r", bool(failed))
+                if shutting_down:
+                    DEFAULT_LOGGER.warning("Stopping job as part of atexit/signal handler exit")
                 try:
                     _finish_job(self.conn, self.inputs, self.outputs, self.identifier,
                         failed=failed)
@@ -1202,7 +1258,8 @@ def handle_args(args):
 
 parser = argparse.ArgumentParser(description='''
 This module intends to offer the ability to lock inputs and outputs in the
-context of data flows, data pipelines, etl flows, and job flows.
+context of data flows, data pipelines, etl flows, job flows, and general
+multi-locking.
 
 
 If run as a script, this module will print the list of currently known running
@@ -1219,9 +1276,6 @@ $ python -m jobs --downstream input
 Want to know what jobs and inputs are upstream from a given output?
 
 $ python -m jobs --upstream output
-
-
-
 
 ''')
 

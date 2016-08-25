@@ -172,10 +172,10 @@ All configuration options are available as options on the jobs.py module itself,
 though you *can* override the connection explicitly on a per-job basis. See the
 'Connection configuration' section below for more details.::
 
-    # The Redis connection
+    # The Redis connection, REQUIRED!
     jobs.CONN = redis.Redis()
 
-    # Sets a prefix to be used on all keys stored in Redis
+    # Sets a prefix to be used on all keys stored in Redis (optional)
     jobs.GLOBAL_PREFIX = ''
 
     # Keep a sanitized ZSET of inputs and outputs, available for traversal
@@ -184,4 +184,45 @@ though you *can* override the connection explicitly on a per-job basis. See the
     # ... which allows you to get a compact flow graph even in cases where you
     # have day-parameterized builds.
     jobs.GRAPH_HISTORY = True
+
+    # To use a logger that doesn't print to standard output, set the logging
+    # object at the module level (see below). By default, the built-in "default
+    # logger" prints to standard output.
+    jobs.DEFAULT_LOGGER = logging.getLogger(...)
+
+Using jobs.py with a custom Redis configuration
+===============================================
+
+If you would like to use jobs.py as a script (for the convenient command-line
+options), you need to create a wrapper module, which can also act as your
+general configuration updates for jobs.py (hack because I needed to release
+this as open-source before the end of summer)::
+
+
+    # myjobs.py
+    import jobs
+    jobs.CONN = ...
+    jobs.DEFAULT_LOGGER = ...
+    jobs.GLOBAL_PREFIX = ...
+    jobs.GRAPH_HISTORY = ...
+
+    from jobs import *
+
+    if __name__ == '__main__':
+        main()
+
+Then you can use this as...
+
+    $ python myjobs.py --help
+
+
+And you can use ``myjobs.py`` everywhere, which will have all of your
+configuration handled.
+
+    # daily_report.py
+    import myjobs
+
+    @myjobs.resource_manager(...)
+    def daily_reporting(job, ...):
+        # exactly the same as before.
 
