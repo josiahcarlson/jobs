@@ -8,13 +8,18 @@ try:
 except IOError:
     long_description = ''
 
+try:
+    version = open('VERSION').read()
+except:
+    version = '??'
+
 setup(
-    name='jobs',
-    version=open('VERSION').read(),
+    name='jobspy',
+    version=version,
     description='Use Redis as a job input/output coordinator.',
     author='Josiah Carlson',
     author_email='josiah.carlson@gmail.com',
-    url='https://github.com/josiahcarlson/jobspy',
+    url='https://github.com/josiahcarlson/jobs',
     py_modules=['jobs'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
