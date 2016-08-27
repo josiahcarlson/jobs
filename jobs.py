@@ -1,6 +1,7 @@
 
 '''
 Job resource input/output control using Redis as a locking layer
+
 Copyright 2016 Josiah Carlson
 
 This library licensed under the GNU LGPL v2.1
@@ -14,18 +15,23 @@ inside individual rpqueue tasks, and even inside individual Flask web requests
 for some high-value data (jobs.py is backed by Redis, so job locking overhead
 *can* be low, even when you need to keep data safe).
 
+Source: https://github.com/josiahcarlson/jobs/
+PyPI: https://pypi.python.org/pypi/jobspy/
+Docs: https://pythonhosted.org/jobspy/
+
 Features
 ========
 
-Input/output locking on multiple *named* keys, called "inputs" and "outputs":
- * All keys are case-sensitive
- * Multiple readers on input keys
- * Exclusive single writer on output keys (no readers or other writers)
- * All inputs must have been an output previously
- * Optional global and per-job history of sanitized input/output edges (enabled
-   by default)
- * Lock multiple inputs and outputs simultaneously, e.g. to produce outputs Y and
-   Z, I need to consume inputs A, B, C.
+Input/output locking on multiple *named* keys, called "inputs" and "outputs".
+
+* All keys are case-sensitive
+* Multiple readers on input keys
+* Exclusive single writer on output keys (no readers or other writers)
+* All inputs must have been an output previously
+* Optional global and per-job history of sanitized input/output edges (enabled
+  by default)
+* Lock multiple inputs and outputs simultaneously, e.g. to produce outputs Y and
+  Z, I need to consume inputs A, B, C.
 
 How to use
 ==========
@@ -212,13 +218,13 @@ this as open-source before the end of summer)::
     if __name__ == '__main__':
         main()
 
-Then you can use this as...
+Then you can use this as::
 
     $ python myjobs.py --help
 
 
 And you can use ``myjobs.py`` everywhere, which will have all of your
-configuration handled.
+configuration handled.::
 
     # daily_report.py
     import myjobs
