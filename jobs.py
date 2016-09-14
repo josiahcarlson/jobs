@@ -98,7 +98,7 @@ How to use
                 # stop the job, not setting
                 job.stop(failed=True)
 
-        # arg2 should exist since it was an output, and we didn't get an
+        # arg2 should exist after it was an output, and we didn't get an
         # exception... though if someone else is writing to it immediately in
         # another call, then this may block...
         with jobs.ResourceManager([arg2], ['output.x'], duration=60, wait=900, overwrite=True):
@@ -241,6 +241,7 @@ import argparse
 import atexit
 import binascii
 from collections import defaultdict, deque
+from datetime import datetime, date
 import functools
 from hashlib import sha1
 import json
@@ -257,7 +258,7 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.25.6'
+VERSION = '0.25.7'
 
 # user-settable configuration
 CONN = None
@@ -267,6 +268,9 @@ DEFAULT_LOGGER = None # actually set below, see BullshitLog()
 # end user-settable configuration
 
 EDGE_RE = re.compile('[0-9][0-9-]*')
+TS_RE = re.compile('^(\d{9,}(?:[.]\d*)?)$')
+DT_RE = re.compile('^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2})(?:[.](?:\d+)?)?)?)?$')
+EPOCH = datetime(1970, 1, 1)
 PY3K = sys.version_info >= (3, 0, 0)
 TEXT_TYPE = str if PY3K else unicode
 LOCKED = set()
@@ -1083,14 +1087,45 @@ def show_jobs(conn):
 def _fix_edge(e):
     return EDGE_RE.sub('*', e)
 
-def edges(conn):
+
+
+def _to_ts(val):
+    if isinstance(val, (int, float)):
+        return val
+    elif isinstance(val, (datetime, date)):
+        return (val-EPOCH).total_seconds()
+    v = TS_RE.match(val)
+    if v:
+        return float(v.group(0))
+    v = DT_RE.match(val)
+    if v:
+        # get all of the passed datetime pieces, don't worry about them being
+        # terribly valid, the datetime constructor will handle that ;)
+        v = list(filter(None, v.groups()))
+        if len(v) == 7:
+            # truncate to microseconds as necessary
+            v[6] = v[6][:6]
+            # extend to microseconds as necessary
+            v[6] += (6 - len(v[6])) * '0'
+        v = list(map(int, v))
+        dt = datetime(*v)
+        return (dt-EPOCH).total_seconds()
+    raise Exception("Value %r is not a timestamp, datetime, or date"%(val,))
+
+def edges(conn, before=None, after=None):
     '''
     Returns (inputs, outputs). Inputs are sorted by prefix, outputs are sorted
     by suffix.
+
+    The `before` and `after` arguments
+
     '''
     io = []
     for key in ['jobs:graph:input', 'jobs:graph:output']:
-        iol = conn.zrange(key, 0, -1)
+        l = '-inf' if after is None else _to_ts(after)
+        h = 'inf' if before is None else _to_ts(before)
+
+        iol = conn.zrangebyscore(key, l, h)
         io.append(list(sorted(set(_fix_edge(e) for e in iol))))
     return io
 
@@ -1143,13 +1178,16 @@ def print_edge(left, right, s):
     print('"%s" -> "%s"%s'%(left, right, s))
 
 
-def _traverse(out, je, s, conn=None):
-    inputs, outputs = edges(conn or CONN)
+def _traverse(out, je, s, conn=None, depth=-1, before=None, after=None):
+    if not depth:
+        return
+
+    inputs, outputs = edges(conn or CONN, before=before, after=after)
     inputs.sort()
     outputs.sort()
 
     known = set([je])
-    q = deque(known)
+    q = deque([(je, depth)])
 
     # je is a job identifier or an edge. Job identifiers are already handled
     # in the main loop below, so we'll just handle job edges.
@@ -1158,59 +1196,77 @@ def _traverse(out, je, s, conn=None):
     # graph edges. A better graph model would let us refactor, but if we're
     # going to go that far, we may as well just add an ORM or similar for
     # non-edge metadata.
-
+    dm1 = depth - 1
     if out:
         for edge in _consumes(inputs, je):
             left, _, right = edge.partition(ARROW)
             print_edge(left, right, s)
             if right not in known:
                 known.add(right)
-                q.append(right)
+                q.append((right, dm1))
     else:
         for edge in _produces(outputs, je):
             left, _, right = edge.partition(ARROW)
             print_edge(left, right, s)
             if left not in known:
                 known.add(left)
-                q.append(left)
+                q.append((left, dm1))
 
     while q:
-        it = q.popleft()
+        it, d = q.popleft()
+        dm1 = d-1
         if out:
             # outputs, so downstream
             for outp in _outputs(outputs, it):
                 print_edge(it, outp, s)
                 for job in _consumes(inputs, outp):
+                    print_edge(outp, job, s)
                     if job not in known:
-                        print_edge(outp, job, s)
                         known.add(job)
-                        q.append(job)
+                        if d:
+                            q.append((job, dm1))
         else:
             # inputs, so upstream
             for inp in _inputs(inputs, it):
                 print_edge(inp, it, s)
                 for job in _produces(outputs, inp):
+                    print_edge(job, inp, s)
                     if job not in known:
-                        print_edge(job, inp, s)
                         known.add(job)
-                        q.append(job)
+                        if d:
+                            q.append((job, dm1))
 
 #-------------------------- for calling as a script --------------------------
 
 def handle_args(args):
-    other = any(vars(args).values())
+    if args.yes_history is not None:
+        global GRAPH_HISTORY
+        GRAPH_HISTORY = args.yes_history
 
-    if args.finish:
-        print(time.asctime(), "Finishing the job:", args.finish)
-        inputs, outputs = get_job_io(args.finish)
+    if args.start:
+        assert args.wait is not None and args.wait > 0, "--wait > 0 required when using --start"
+        assert args.duration is not None and args.duration > 0, "--duration > 0 required when using --start"
+        overwrite = True if args.yes_overwrite is None else args.yes_overwrite
+
+        job = ResourceManager(args.inputs, args.outputs, args.duration, args.wait,
+            overwrite, graph_history=GRAPH_HISTORY)
+        job._identifier = args.start
+        job.start()
+        # This has to be dirty, because we want the job to be locked after we
+        # exit the process if it was acquired.
+        LOCKED.discard(job)
+
+    if args.stop:
+        print(time.asctime(), "Finishing the job:", args.stop)
+        inputs, outputs = get_job_io(args.stop)
         print_io(inputs, outputs)
         _create_outputs(outputs)
         _force_unlock(inputs, [])
         print(time.asctime(), "Finished.")
 
-    if args.fail:
-        print(time.asctime(), "Failing the job:", args.fail)
-        inputs, outputs = get_job_io(args.fail)
+    if args.stop_failed:
+        print(time.asctime(), "Failing the job:", args.stop_failed)
+        inputs, outputs = get_job_io(args.stop_failed)
         print_io(inputs, outputs)
         _force_unlock(inputs, outputs)
         print(time.asctime(), "Failed.")
@@ -1231,7 +1287,7 @@ def handle_args(args):
         _force_unlock([], args.unlock_outputs)
         print(time.asctime(), "Unlocked.")
 
-    gout = args.graphviz and (args.upstream or args.downstream or args.display_all_edges_ever_known)
+    gout = args.graphviz and (args.upstream or args.downstream or args.all)
 
     s = ''
     if gout:
@@ -1239,14 +1295,14 @@ def handle_args(args):
         s = ';'
 
     if args.upstream:
-        _traverse(False, args.upstream, s)
+        _traverse(False, args.upstream, s, depth=args.depth, after=args.after, before=args.before)
 
     if args.downstream:
-        _traverse(True, args.downstream, s)
+        _traverse(True, args.downstream, s, depth=args.depth, after=args.after, before=args.before)
 
     skip = "copy_data.py:copy_table.*"
-    if args.display_all_edges_ever_known:
-        inputs, outputs = edges(CONN)
+    if args.all:
+        inputs, outputs = edges(CONN, after=args.after, before=args.before)
         for edge in inputs:
             if edge.endswith(skip):
                 continue
@@ -1261,8 +1317,10 @@ def handle_args(args):
     if gout:
         print('}')
 
-    if not other:
+    if not len(sys.argv):
         show_jobs(CONN)
+
+#------------------------ set up the argument parser -------------------------
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1273,7 +1331,8 @@ multi-locking.
 
 
 If run as a script, this module will print the list of currently known running
-jobs if run without arguments.
+jobs if run without arguments. Other arguments can do a variety of convenient
+things.
 
 $ python {0}
 
@@ -1293,31 +1352,204 @@ $ python {0} --upstream input
 $ python {0} --upstream output
 $ python {0} --upstream identifier
 
+
+Want to limit how deep the graph traversal goes?
+
+$ python {0} --upstream output --limit 5
+$ python {0} --upstream input --limit 25
+$ python {0} --upstream input --limit -1 # the default, unlimited
+
+
+Want to limit your scan to jobs before, after, or between a timestamp, datetime,
+and/or date?
+
+$ python {0} --downstream <...> --after 2016-09-01 --before "2016-09-01 05:23:44"
+$ python {0} --upstream <...> --after 1473739917  --before 1473825618.18592
+$ python {0} --all <...> --after 2016-09-01 --before 1473825618.18592
+
+
+Note when using --start and --yes-history:
+    Edge components (the job identifier, inputs, and outputs) are all "cleaned"
+    prior to insertion into edge history. "Cleaning" involves replacing all
+    substrings matching this regular expression: '[0-9][0-9-]*' with an asterisk
+    '*'. So for a job identifier 'foo.bar.2016-09-01', with input 'blah.6213'
+    and output 'other.1456282826', sanitized edges would be:
+
+    'blah.* -> foo.bar.*'
+    'foo.bar.* -> other.*'
+
 '''.format(sys.argv[0] or 'jobs.py'))
 
-parser.add_argument('--graphviz', action='store_true', default=False,
-    help="If edges are to be output, produce them in a format meant for graphviz 'dot' command")
+#-------------------------- what and how to output ---------------------------
+
+parser.add_argument(
+    '--graphviz',
+    action='store_true',
+    default=False,
+    help="If edges are to be output, produce them in a format meant for graphviz 'dot' command"
+)
+
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--display-all-edges-ever-known', action='store_true',
-    default=False, help="Print all input/output edges known about (useful for debugging)")
+group.add_argument(
+    '--display-all-edges-ever-known',
+    '--all',
+    action='store_true',
+    dest='all',
+    default=False,
+    help="Print all input/output edges known about (useful for debugging)"
+)
 
-group.add_argument('--upstream',
+group.add_argument(
+    '--upstream',
     help="Print the list of all upstream jobs and inputs from the provided job "
-         "identifier, input, or output, in a breadth-first traversal")
-group.add_argument('--downstream',
+         "identifier, input, or output, in a breadth-first traversal"
+)
+group.add_argument(
+    '--downstream',
     help="Print the list of all downstream jobs and outputs from the provided "
-         "job identifier, input, or output, in a breadth-first traversal")
+         "job identifier, input, or output, in a breadth-first traversal"
+)
 
-group.add_argument('--finish',
-    help="Unlock all inputs and outputs related to the provided job id, DO write outputs")
-group.add_argument('--fail',
-    help="Unlock all inputs and outputs related to the provided job id, DO NOT write outputs")
-group.add_argument('--unlock-inputs', nargs='*',
-    help="Unlocks the provided inputs")
-group.add_argument('--unlock-outputs', nargs='*',
-    help="Unlocks the provided outputs")
-group.add_argument('--create-outputs', nargs='*',
-    help="Unlocks and sets the provided outputs")
+#------------------------------- job IO limits -------------------------------
+
+parser.add_argument(
+    '--depth',
+    type=int,
+    default=-1,
+    help="Sets the depth of the traversal for --upstream and --downstream "
+         "(negative numbers mean no-limit)"
+)
+
+parser.add_argument(
+    '--after',
+    help="If provided one of: timestamp ('1473825618.18592', '1473825618'), "
+         "datetime ('2016-09-12 12:14:32.234232', '2016-09-12 12:14:32', "
+         "'2016-09-12 12:14), or date ('2016-09-12'), will only produce jobs "
+         "inputs or outputs last seen after that timestamp, datetime, or date. "
+         "Note: only applies to --upstream and --downstream options, and only "
+         "the most recent run information is kept."
+)
+
+parser.add_argument(
+    '--before',
+    help="Like --after, only requires jobs to be *before* the provided timestamp "
+         "datetime, or date."
+)
+
+#--------------------------------- --refresh ---------------------------------
+
+group.add_argument(
+    '--refresh',
+    dest='refresh',
+    metavar="JOB_IDENTIFIER",
+    help="Will refresh an already-started job with the given job identifier."
+)
+
+#------------ --start - really start a job from the command-line -------------
+
+group.add_argument(
+    '--start',
+    dest='start',
+    metavar="JOB_IDENTIFIER",
+    help="Will start or refresh (if already started) the job with the given "
+         "job identifier. Note: if you want to lock inputs/outputs (the start "
+         "case, not the refresh case), you *must* provide them as --add-input "
+         "and --add-output arguments"
+)
+
+#--------------------------- --duration and --wait ---------------------------
+
+parser.add_argument(
+    '--duration',
+    type=int,
+    default=None,
+    help="How long to keep the lock for, required when using --start"
+)
+
+parser.add_argument(
+    '--wait',
+    type=int,
+    default=None,
+    help="How long to wait to acquire the lock, required when using --start"
+)
+
+#------------------------ --start inputs and outputs -------------------------
+
+parser.add_argument(
+    '--add-input',
+    action='append',
+    help="The list of inputs to lock when using --start"
+)
+
+parser.add_argument(
+    '--add-output',
+    action='append',
+    help="The list of outputs to lock/generate when using --start"
+)
+
+#------------------------------ --start history ------------------------------
+
+hgroup = parser.add_mutually_exclusive_group()
+hgroup.add_argument(
+    '--yes-history',
+    action='store_true',
+    default=None,
+    help="Will override the default history option in the system globals. Note: "
+         "only applies to --start calls that are actually starting a new job."
+)
+
+hgroup.add_argument(
+    '--no-history',
+    action='store_false',
+    dest='yes_history',
+    help="Will override the default history option in the system globals. Note: "
+         "only applies to --start calls that are actually starting a new job."
+)
+
+#------------------------- --start overwrite outputs -------------------------
+
+ogroup = parser.add_mutually_exclusive_group()
+ogroup.add_argument(
+    '--yes-overwrite',
+    action='store_true',
+    default=None,
+    help="Will pass overwrite=True when using --start"
+)
+
+ogroup.add_argument(
+    '--no-overwrite',
+    action='store_false',
+    dest='yes_overwrite',
+    help="Will pass overwrite=False when using --start"
+)
+
+#---------------------------- remaining arguments ----------------------------
+
+group.add_argument(
+    '--stop',
+    help="Unlock all inputs and outputs related to the provided job id, DO write "
+         "outputs"
+)
+group.add_argument(
+    '--stop-failed',
+    help="Unlock all inputs and outputs related to the provided job id, DO NOT "
+         "write outputs"
+)
+group.add_argument(
+    '--unlock-inputs',
+    nargs='*',
+    help="Unlocks the provided inputs"
+)
+group.add_argument(
+    '--unlock-outputs',
+    nargs='*',
+    help="Unlocks the provided outputs"
+)
+group.add_argument(
+    '--create-outputs',
+    nargs='*',
+    help="Unlocks and sets the provided outputs"
+)
 
 def main():
     global ARGS
