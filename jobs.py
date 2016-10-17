@@ -258,7 +258,7 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.25.7'
+VERSION = '0.26.0'
 
 # user-settable configuration
 CONN = None
@@ -1179,9 +1179,6 @@ def print_edge(left, right, s):
 
 
 def _traverse(out, je, s, conn=None, depth=-1, before=None, after=None):
-    if not depth:
-        return
-
     inputs, outputs = edges(conn or CONN, before=before, after=after)
     inputs.sort()
     outputs.sort()
@@ -1189,52 +1186,33 @@ def _traverse(out, je, s, conn=None, depth=-1, before=None, after=None):
     known = set([je])
     q = deque([(je, depth)])
 
-    # je is a job identifier or an edge. Job identifiers are already handled
-    # in the main loop below, so we'll just handle job edges.
+    # out/downstream is all stuff leading from left to right.
+    # in/upstream is all stuff leading from right to left.
+    all_edges = inputs + outputs
 
-    # These are identical algorithms, just in different directions on the
-    # graph edges. A better graph model would let us refactor, but if we're
-    # going to go that far, we may as well just add an ORM or similar for
-    # non-edge metadata.
-    dm1 = depth - 1
     if out:
-        for edge in _consumes(inputs, je):
-            left, _, right = edge.partition(ARROW)
-            print_edge(left, right, s)
-            if right not in known:
-                known.add(right)
-                q.append((right, dm1))
-    else:
-        for edge in _produces(outputs, je):
-            left, _, right = edge.partition(ARROW)
-            print_edge(left, right, s)
-            if left not in known:
-                known.add(left)
-                q.append((left, dm1))
-
-    while q:
-        it, d = q.popleft()
-        dm1 = d-1
-        if out:
-            # outputs, so downstream
-            for outp in _outputs(outputs, it):
+        # outputs, so downstream
+        while q:
+            it, d = q.popleft()
+            dm1 = d-1
+            for outp in _outputs(all_edges, it):
                 print_edge(it, outp, s)
-                for job in _consumes(inputs, outp):
-                    print_edge(outp, job, s)
-                    if job not in known:
-                        known.add(job)
-                        if d:
-                            q.append((job, dm1))
-        else:
-            # inputs, so upstream
-            for inp in _inputs(inputs, it):
+                if outp not in known:
+                    known.add(outp)
+                    if d:
+                        q.append((outp, dm1))
+
+    else:
+        # inputs, so upstream
+        while q:
+            it, d = q.popleft()
+            dm1 = d-1
+            for inp in _inputs(all_edges, it):
                 print_edge(inp, it, s)
-                for job in _produces(outputs, inp):
-                    print_edge(job, inp, s)
-                    if job not in known:
-                        known.add(job)
-                        if d:
-                            q.append((job, dm1))
+                if inp not in known:
+                    known.add(inp)
+                    if d:
+                        q.append((inp, dm1))
 
 #-------------------------- for calling as a script --------------------------
 
@@ -1355,9 +1333,9 @@ $ python {0} --upstream identifier
 
 Want to limit how deep the graph traversal goes?
 
-$ python {0} --upstream output --limit 5
-$ python {0} --upstream input --limit 25
-$ python {0} --upstream input --limit -1 # the default, unlimited
+$ python {0} --upstream output --depth 5
+$ python {0} --upstream input --depth 25
+$ python {0} --upstream input --depth -1 # the default, unlimited
 
 
 Want to limit your scan to jobs before, after, or between a timestamp, datetime,

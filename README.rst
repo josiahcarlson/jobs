@@ -97,7 +97,7 @@ How to use
                 # stop the job, not setting
                 job.stop(failed=True)
 
-        # arg2 should exist since it was an output, and we didn't get an
+        # arg2 should exist after it was an output, and we didn't get an
         # exception... though if someone else is writing to it immediately in
         # another call, then this may block...
         with jobs.ResourceManager([arg2], ['output.x'], duration=60, wait=900, overwrite=True):

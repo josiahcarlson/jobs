@@ -3,8 +3,7 @@
 from distutils.core import setup
 
 try:
-    with open('README.rst') as f:
-        long_description = f.read()
+    long_description = open('README.rst').read()
 except IOError:
     long_description = ''
 
