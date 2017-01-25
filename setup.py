@@ -10,7 +10,7 @@ except IOError:
 try:
     version = open('VERSION').read()
 except:
-    version = '??'
+    VERSION = '??'
 
 setup(
     name='jobspy',

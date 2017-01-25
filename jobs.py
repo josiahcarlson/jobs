@@ -258,7 +258,7 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.26.0'
+VERSION = '0.26.1'
 
 # user-settable configuration
 CONN = None
@@ -1226,7 +1226,7 @@ def handle_args(args):
         assert args.duration is not None and args.duration > 0, "--duration > 0 required when using --start"
         overwrite = True if args.yes_overwrite is None else args.yes_overwrite
 
-        job = ResourceManager(args.inputs, args.outputs, args.duration, args.wait,
+        job = ResourceManager(args.add_input, args.add_output, args.duration, args.wait,
             overwrite, graph_history=GRAPH_HISTORY)
         job._identifier = args.start
         job.start()
@@ -1456,12 +1456,14 @@ parser.add_argument(
 parser.add_argument(
     '--add-input',
     action='append',
+    default=[],
     help="The list of inputs to lock when using --start"
 )
 
 parser.add_argument(
     '--add-output',
     action='append',
+    default=[],
     help="The list of outputs to lock/generate when using --start"
 )
 
