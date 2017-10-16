@@ -1258,7 +1258,7 @@ def handle_args(args):
         print(time.asctime(), "Creating outputs:", args.create_outputs)
         _create_outputs(args.create_outputs)
         print(time.asctime(), "Created")
-        args.unlock_outputs.extend(args.create_outputs)
+        _force_unlock([], args.create_outputs)
 
     if args.unlock_outputs:
         print(time.asctime(), "Unlocking outputs:", args.unlock_outputs)
