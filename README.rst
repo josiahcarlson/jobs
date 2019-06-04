@@ -1,7 +1,7 @@
 
 Job resource input/output control using Redis as a locking layer
 
-Copyright 2016 Josiah Carlson
+Copyright 2016-2018 Josiah Carlson
 
 This library licensed under the GNU LGPL v2.1
 
@@ -191,6 +191,15 @@ though you *can* override the connection explicitly on a per-job basis. See the
     # have day-parameterized builds.
     jobs.GRAPH_HISTORY = True
 
+    # Sometimes you don't want your outputs to last forever (sometimes history
+    # should be forgotten, right?), and jobs.py gives you the chance to say as
+    # much.
+    # By default, a `None` duration means that outputs will last forever. Any
+    # other value will be used in a call to `expire` on the associated output
+    # keys after they are set on a job's successful completion. This value is in
+    # seconds.
+    jobs.OUTPUT_DURATION = None
+
     # To use a logger that doesn't print to standard output, set the logging
     # object at the module level (see below). By default, the built-in "default
     # logger" prints to standard output.
@@ -211,6 +220,7 @@ this as open-source before the end of summer)::
     jobs.DEFAULT_LOGGER = ...
     jobs.GLOBAL_PREFIX = ...
     jobs.GRAPH_HISTORY = ...
+    jobs.OUTPUT_DURATION = ...
 
     from jobs import *
 

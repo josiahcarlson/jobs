@@ -2,7 +2,7 @@
 '''
 Job resource input/output control using Redis as a locking layer
 
-Copyright 2016 Josiah Carlson
+Copyright 2016-2018 Josiah Carlson
 
 This library licensed under the GNU LGPL v2.1
 
@@ -192,6 +192,15 @@ though you *can* override the connection explicitly on a per-job basis. See the
     # have day-parameterized builds.
     jobs.GRAPH_HISTORY = True
 
+    # Sometimes you don't want your outputs to last forever (sometimes history
+    # should be forgotten, right?), and jobs.py gives you the chance to say as
+    # much.
+    # By default, a `None` duration means that outputs will last forever. Any
+    # other value will be used in a call to `expire` on the associated output
+    # keys after they are set on a job's successful completion. This value is in
+    # seconds.
+    jobs.OUTPUT_DURATION = None
+
     # To use a logger that doesn't print to standard output, set the logging
     # object at the module level (see below). By default, the built-in "default
     # logger" prints to standard output.
@@ -212,6 +221,7 @@ this as open-source before the end of summer)::
     jobs.DEFAULT_LOGGER = ...
     jobs.GLOBAL_PREFIX = ...
     jobs.GRAPH_HISTORY = ...
+    jobs.OUTPUT_DURATION = ...
 
     from jobs import *
 
@@ -258,12 +268,13 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.26.2'
+VERSION = '0.27.0'
 
 # user-settable configuration
 CONN = None
 GLOBAL_PREFIX = ''
 GRAPH_HISTORY = True
+OUTPUT_DURATION = None
 DEFAULT_LOGGER = None # actually set below, see BullshitLog()
 # end user-settable configuration
 
@@ -278,6 +289,8 @@ AUTO_REFRESH = set()
 REFRESH_THREAD = None
 _GHD = object()
 
+NT = type(None)
+_NT = (NT, int)
 
 class ResourceUnavailable(Exception):
     '''
@@ -320,7 +333,7 @@ def _signal_handler(*args, **kwargs):
         # call the old handler, as necessary
         if OLD_SIGNAL:
             OLD_SIGNAL(*args, **kwargs)
-        raise SystemExit()
+        raise SystemExit(128 + args[0])
 
 # register new signal handler, and keep reference to the old one (if any)
 OLD_SIGNAL = signal.signal(signal.SIGTERM, _signal_handler)
@@ -338,7 +351,7 @@ def handle_auto_shutdown():
         SIGNAL_SET, OLD_SIGNAL = True, signal.signal(signal.SIGTERM, _signal_handler)
 
 def resource_manager(inputs, outputs, duration, wait=None, overwrite=True,
-        conn=None, graph_history=_GHD, suffix=None):
+        conn=None, graph_history=_GHD, suffix=None, output_duration=None):
     '''
     Arguments:
         * inputs - the list of inputs that need to exist to start the job
@@ -353,12 +366,15 @@ def resource_manager(inputs, outputs, duration, wait=None, overwrite=True,
         * conn=None - a Redis connection to use (provide here, or when
             calling .start())
         * graph_history=True - whether to keep history of graph edges
+        * output_duration=None - how long to keep outputs in Redis, defaults
+            to forever
     '''
     def wrap(fcn):
         @functools.wraps(fcn)
         def call(*args, **kwargs):
             manager = ResourceManager(inputs, outputs, duration, wait,
-                overwrite, conn, graph_history, _caller_name(fcn), suffix)
+                overwrite, conn, graph_history, _caller_name(fcn), suffix,
+                output_duration)
             ex = False
             try:
                 return fcn(manager, *args, **kwargs)
@@ -373,7 +389,8 @@ def resource_manager(inputs, outputs, duration, wait=None, overwrite=True,
 
 class ResourceManager(object):
     def __init__(self, inputs, outputs, duration, wait=None, overwrite=True,
-            conn=None, graph_history=_GHD, identifier=None, suffix=None):
+            conn=None, graph_history=_GHD, identifier=None, suffix=None,
+            output_duration=None):
         '''
         Arguments:
             * inputs - the list of inputs that need to exist to start the job
@@ -388,6 +405,8 @@ class ResourceManager(object):
             * conn=None - a Redis connection to use (provide here, or when
                 calling .start())
             * graph_history=True - whether to keep history of graph edges
+            * output_duration=None - how long to keep outputs in Redis, defaults
+                to forever
         '''
         assert isinstance(inputs, (list, tuple, set)), inputs
         assert isinstance(outputs, (list, tuple, set)), outputs
@@ -401,6 +420,12 @@ class ResourceManager(object):
         self.conn = conn
         self.graph_history = GRAPH_HISTORY if graph_history is _GHD else graph_history
         self.auto_refresh = None
+        if not isinstance(output_duration, _NT):
+            raise TypeError("output_duration must be None or integer")
+        if isinstance(output_duration, int):
+            if output_duration <= 0:
+                raise ValueError("output_duration must be > 0")
+        self.output_duration = output_duration or OUTPUT_DURATION
         self._lock = threading.RLock()
 
         # This is a symptom of bad design. But it exists because I need the
@@ -606,7 +631,7 @@ class ResourceManager(object):
                     DEFAULT_LOGGER.warning("Stopping job as part of atexit/signal handler exit")
                 try:
                     _finish_job(self.conn, self.inputs, self.outputs, self.identifier,
-                        failed=failed)
+                        failed=failed, od=self.output_duration)
                 finally:
                     self.last_refreshed = None
                     self.auto_refresh = None
@@ -714,12 +739,15 @@ def _refresh_job(conn, inputs_outputs, graph, identifier, duration, overwrite):
     ).decode('latin-1')))
 
 @_check_inputs_and_outputs
-def _finish_job(conn, inputs_outputs, graph, identifier, failed=False):
+def _finish_job(conn, inputs_outputs, graph, identifier, failed=False, od=None):
     '''
     Internal call to finish a job.
     '''
+    args = [identifier, time.time(), not failed, GLOBAL_PREFIX]
+    if od:
+        args.append(od)
     _finish_job_lua(conn, keys=inputs_outputs,
-        args=[json.dumps([identifier, time.time(), not failed, GLOBAL_PREFIX])]
+        args=[json.dumps(args)]
     )
 
 def _caller_name(code):
@@ -896,11 +924,12 @@ return cjson.encode({ok=true})
 _finish_job_lua = _script_load('''
 -- KEYS - list of inputs and outputs to finish the job for, same semantics as
 --        _run_if_possible_lua()
--- ARGV - {json.dumps([identifier, now, success, prefix])}
+-- ARGV - {json.dumps([identifier, now, success, prefix, [output_duration]])}
 
 local args = cjson.decode(ARGV[1])
 local is_input = true
 local prefix = args[4]
+local expire = args[5]
 
 for i, kk in ipairs(KEYS) do
     if kk == '' then
@@ -921,7 +950,11 @@ for i, kk in ipairs(KEYS) do
 
         if args[3] then
             -- set the output key to the identifier to signify the job is done
-            redis.call('set', prefix .. kk, args[1])
+            if args[5] then
+                redis.call('setex', prefix .. kk, args[5], args[1])
+            else
+                redis.call('set', prefix .. kk, args[1])
+            end
         end
     end
 end
@@ -1364,7 +1397,16 @@ parser.add_argument(
     '--graphviz',
     action='store_true',
     default=False,
-    help="If edges are to be output, produce them in a format meant for graphviz 'dot' command"
+    help="If edges are to be output, produce them in a format meant for graphviz "
+         "'dot' command"
+)
+
+parser.add_argument(
+    '--output-duration',
+    default=None,
+    type=int,
+    help="If outputs are to be written and forgotten, how long (in seconds) "
+         "should they exist?"
 )
 
 group = parser.add_mutually_exclusive_group()

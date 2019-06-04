@@ -19,7 +19,7 @@ def random_identifier():
 
 class TestJobs(unittest.TestCase):
     def setUp(self):
-        CONN.mset({NG.input1:'', NG.input2:'', NG.input3:''})
+        CONN.mset({str(NG.input1):'', str(NG.input2):'', str(NG.input3):''})
 
     def tearDown(self):
         kk = CONN.keys('*' + str(NG) + '*')
@@ -127,7 +127,7 @@ class TestJobs(unittest.TestCase):
                 self.assertEqual(e.args, ({'output_locked': [NG.output2]},))
                 self.assertTrue(CONN.exists('olock:' + str(NG.output2)))
                 # make sure that the output doesn't exist
-                self.assertFalse(CONN.exists(NG.output2))
+                self.assertFalse(CONN.exists(str(NG.output2)))
 
             # verify lock TTLs and that we can refresh them
             time.sleep(1)
@@ -139,14 +139,14 @@ class TestJobs(unittest.TestCase):
             self.assertGreaterEqual(lock_ttl, 4)
             self.assertLessEqual(lock_ttl, 5)
 
-            self.assertFalse(CONN.exists(NG.output2))
+            self.assertFalse(CONN.exists(str(NG.output2)))
             start = time.time()
             # test whether a job that waits long enough for the lock can get it
             with jobs.ResourceManager([], [NG.output2], 0, 5, conn=CONN) as job:
                 pass
             self.assertGreater(time.time() - start, 1)
             # verify that the recovered lock lead to completion
-            self.assertTrue(CONN.exists(NG.output2))
+            self.assertTrue(CONN.exists(str(NG.output2)))
 
     def test_5_lost_lock(self):
         with jobs.ResourceManager([NG.input1, NG.input2], [NG.output1], 1) as job:
