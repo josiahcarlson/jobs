@@ -279,8 +279,8 @@ DEFAULT_LOGGER = None # actually set below, see BullshitLog()
 # end user-settable configuration
 
 EDGE_RE = re.compile('[0-9][0-9-]*')
-TS_RE = re.compile('^(\d{9,}(?:[.]\d*)?)$')
-DT_RE = re.compile('^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2})(?:[.](?:\d+)?)?)?)?$')
+TS_RE = re.compile(r'^(\d{9,}(?:[.]\d*)?)$')
+DT_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2})(?:[.](?:\d+)?)?)?)?$')
 EPOCH = datetime(1970, 1, 1)
 PY3K = sys.version_info >= (3, 0, 0)
 TEXT_TYPE = str if PY3K else unicode
