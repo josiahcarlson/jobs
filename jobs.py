@@ -652,7 +652,7 @@ def _create_outputs(outputs, conn=None, identifier=None, suffix=None):
     identifier = NG(identifier or _caller_name(_get_caller()))
     if suffix:
         identifier = identifier[suffix]
-    (conn or CONN).mset({o:identifier for o in outputs})
+    (conn or CONN).mset({str(o):str(identifier) for o in outputs})
 
 
 def _force_unlock(inputs, outputs, conn=None):
