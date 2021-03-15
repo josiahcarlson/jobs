@@ -1,0 +1,8 @@
+# --- 0.28.0 ---
+Thank you to Github user https://github.com/bra-fsn for the PR to fix Python
+Redis client 3.x support.
+Thank you to Github user https://github.com/tirkarthi for the PR to fix
+Deprecation warning.
+This document was created
+# --- 0.27.0 ---
+Before this document was created.

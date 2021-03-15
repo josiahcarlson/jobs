@@ -1,18 +1,31 @@
 
 Job resource input/output control using Redis as a locking layer
 
-Copyright 2016-2018 Josiah Carlson
+Copyright 2016-2021 Dr. Josiah Lee Carlson, Ph.D.
 
 This library licensed under the GNU LGPL v2.1
 
 The initial library requirements and implementation were done for OpenMail LLC.
-jobs.py (this library) was more or less intended to offer input and output
-control like Luigi and/or Airflow (both Python packages), with fewer hard
-integration requirements. In fact, jobs.py has been used successfully as part
-of jobs running in a cron schedule via Jenkins, in build chains in Jenkins,
-inside individual rpqueue tasks, and even inside individual Flask web requests
-for some high-value data (jobs.py is backed by Redis, so job locking overhead
-*can* be low, even when you need to keep data safe).
+(now System1 LLC.) jobs.py (this library) was more or less intended to offer
+input and output control like Luigi and/or Airflow (both Python packages), with
+fewer hard integration requirements. In fact, jobs.py has been used successfully
+as part of jobs running in a cron schedule via Jenkins, in build chains in
+Jenkins, inside individual rpqueue tasks, and even inside individual Flask web
+requests for some high-value data (jobs.py is backed by Redis, so job locking
+overhead *can* be low, even when you need to keep data safe).
+
+Note: any company that I (Josiah Carlson, the author) introduce or use this
+library, automatically has a license to use / deploy / ship jobs.py as part of a
+docker layer, or other similar virtualization component for dev / staging / test
+/ or production use. Basically I'm trying to say to any lawyers / lawyer-type
+people: if I worked for the company, or the company you bought, and they are
+using this library, it's fine.
+
+If I *didn't* work for your company, and you want the *same* rights as ^^^, just
+buy a commercial license. Monthly, annual, and *lifetime* rates are very
+reasonable, give you the warm and fuzzies for supporting open-source software,
+and give you actual *rights* to some level of support from the author.
+
 
 Source: https://github.com/josiahcarlson/jobs/
 PyPI: https://pypi.python.org/pypi/jobspy/

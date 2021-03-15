@@ -27,14 +27,19 @@ install:
 
 test:
 	python2.7 -m test_jobs
-	python3.3 -m test_jobs
-	python3.4 -m test_jobs
+	# python3.3 -m test_jobs
+	# python3.4 -m test_jobs
 	python3.5 -m test_jobs
+	python3.6 -m test_jobs
+	python3.7 -m test_jobs
+	python3.8 -m test_jobs
+	python3.9 -m test_jobs
 
 upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python setup.py sdist upload
+	python3.6 setup.py sdist
+	python3.6 -m twine upload --verbose dist/jobspy-`cat VERSION`.tar.gz
 
 docs:
 	python -c "import jobs; open('VERSION', 'wb').write(jobs.VERSION);open('README.rst', 'wb').write(jobs.__doc__);"

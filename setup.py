@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup
+#from distutils.core import setup
 
 try:
     long_description = open('README.rst').read()
