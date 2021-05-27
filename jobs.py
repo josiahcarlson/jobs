@@ -281,7 +281,7 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.28.0'
+VERSION = '0.28.1'
 
 # user-settable configuration
 CONN = None
