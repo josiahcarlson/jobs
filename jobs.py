@@ -360,7 +360,7 @@ def handle_auto_shutdown():
     if not ATEXIT_SET:
         ATEXIT_SET = atexit.register(_signal_handler)
 
-    if not SIGNAL_SET and isinstance(threading.currentThread(), threading._MainThread):
+    if not SIGNAL_SET and isinstance(threading.current_thread(), threading._MainThread):
         SIGNAL_SET, OLD_SIGNAL = True, signal.signal(signal.SIGTERM, _signal_handler)
 
 def resource_manager(inputs, outputs, duration, wait=None, overwrite=True,
@@ -1084,7 +1084,7 @@ def _start_auto_refresh(job, lock=threading.Lock()):
             rq.add(job)
         if rq and (not REFRESH_THREAD or not REFRESH_THREAD.is_alive()):
             REFRESH_THREAD = threading.Thread(target=refresh)
-            REFRESH_THREAD.setDaemon(1)
+            REFRESH_THREAD.daemon = 1
             REFRESH_THREAD.start()
 
 
