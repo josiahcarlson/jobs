@@ -1,3 +1,6 @@
+# --- 0.29.0 ---
+Docker-ized testing and docs generation.
+Got update for threading aliases thanks to Github user https://github.com/hugovk
 # --- 0.28.1 ---
 Bumped setup.py to expliclty say we support Python 3.6-3.9 too
 # --- 0.28.0 ---
