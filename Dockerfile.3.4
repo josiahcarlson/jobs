@@ -1,0 +1,17 @@
+FROM python:3.4
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN python3.4 -m pip install -r requirements.txt
+
+# need jobs.py
+COPY setup.py .
+COPY VERSION .
+COPY jobs.py .
+RUN python3.4 setup.py install
+# and need the tests too
+COPY test_jobs.py .
+
+# Note: needs access to Redis; assumes localhost:6879
+CMD ["python3.4", "-m", "test_jobs"]

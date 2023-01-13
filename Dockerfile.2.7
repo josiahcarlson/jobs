@@ -1,0 +1,17 @@
+FROM python:2.7
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN python2.7 -m pip install -r requirements.txt
+
+# need jobs.py
+COPY setup.py .
+COPY VERSION .
+COPY jobs.py .
+RUN python2.7 setup.py install
+# and need the tests too
+COPY test_jobs.py .
+
+# Note: needs access to Redis; assumes localhost:6879
+CMD ["python2.7", "-m", "test_jobs"]
