@@ -9,7 +9,7 @@ import jobs
 
 import redis
 
-jobs.CONN = CONN = redis.Redis(db=15)
+jobs.CONN = CONN = redis.Redis(host='redis-data-storage', db=15)
 
 
 NG = jobs.NG.test[int(time.time())*1000000 + random.randrange(1000000)]

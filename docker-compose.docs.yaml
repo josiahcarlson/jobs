@@ -1,0 +1,10 @@
+version: '3.9'
+services:
+  jobs-test-docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.docs
+    environment:
+      PYTHONPATH: /app
+    volumes:
+      - /home/josiah/open-source/jobspy/docs/:/app/_build/html/:rw

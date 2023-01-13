@@ -2,7 +2,7 @@
 '''
 Job resource input/output control using Redis as a locking layer
 
-Copyright 2016-2021 Dr. Josiah Lee Carlson, Ph.D.
+Copyright 2016-2023 Dr. Josiah Lee Carlson, Ph.D.
 
 This library licensed under the GNU LGPL v2.1
 
@@ -281,7 +281,7 @@ import redis.exceptions
 
 _all = set(globals())
 
-VERSION = '0.28.1'
+VERSION = '0.29.0'
 
 # user-settable configuration
 CONN = None
