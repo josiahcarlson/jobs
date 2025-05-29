@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools >= 42.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jobspy"
+version = "0.30.0"
+dependencies = [
+  "redis>=3.0.0",
+]
+authors = [
+  {name = "Josiah Carlson", email = "josiah.carlson@gmail.com"},
+]
+maintainers = [
+  {name = "Josiah Carlson", email = "josiah.carlson@gmail.com"}
+]
+description = "Use Redis as a job input/output coordinator."
+readme = "README.rst"
+license = "GNU LGPL v2.1"
+license-files = ["LICEN[CS]E.*"]
+classifiers = [
+  'Development Status :: 5 - Production/Stable',
+  'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
+  'Programming Language :: Python',
+  'Topic :: Software Development :: Libraries :: Python Modules',
+  'Programming Language :: Python',
+  'Programming Language :: Python :: 2.7',
+  'Programming Language :: Python :: 3.5',
+  'Programming Language :: Python :: 3.6',
+  'Programming Language :: Python :: 3.7',
+  'Programming Language :: Python :: 3.8',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+]
+
+[project.urls]
+Documentation = "https://pythonhosted.org/jobspy/"
+Repository = "https://github.com/josiahcarlson/jobs/"
+Changelog = "https://github.com/bpourhamzeh/jobs/blob/master/changelog.txt"

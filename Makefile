@@ -30,7 +30,7 @@ clean:
 	-rm -rf build dist
 
 install:
-	python setup.py install
+	python -m pip install .
 
 
 compose-build-all:
@@ -69,7 +69,7 @@ test-%:
 upload: docs
 	git tag `cat VERSION`
 	git push origin --tags
-	python3.6 setup.py sdist
+	python3.6 -m build
 	python3.6 -m twine upload --verbose dist/jobspy-`cat VERSION`.tar.gz
 
 docs:
