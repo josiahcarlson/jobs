@@ -39,4 +39,4 @@ classifiers = [
 [project.urls]
 Documentation = "https://pythonhosted.org/jobspy/"
 Repository = "https://github.com/josiahcarlson/jobs/"
-Changelog = "https://github.com/bpourhamzeh/jobs/blob/master/changelog.txt"
+Changelog = "https://github.com/josiahcarlson/jobs/blob/master/changelog.txt"
