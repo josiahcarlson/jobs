@@ -32,13 +32,6 @@ clean:
 install:
 	python -m pip install .
 
-
-compose-build-all:
-	echo ${FILES}
-	for target in ${FILES} ; do \
-		docker-compose -f $${target} build -- `${GET_TARGET}` redis-data-storage; \
-	done
-
 compose-build-%:
 	for target in $(patsubst compose-build-%,%,$@) ; do \
 		${COMPOSE_PREFIX}$${target}.yaml build `${GET_TARGET}`; \
@@ -66,10 +59,10 @@ test-%:
 	done
 
 
-upload: docs
+upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python3.6 -m build
+	python3.6 -m build --sdist
 	python3.6 -m twine upload --verbose dist/jobspy-`cat VERSION`.tar.gz
 
 docs:

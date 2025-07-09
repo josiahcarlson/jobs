@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jobspy"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
   "redis>=3.0.0",
 ]
@@ -17,7 +17,7 @@ maintainers = [
 description = "Use Redis as a job input/output coordinator."
 readme = "README.rst"
 license = "GNU LGPL v2.1"
-license-files = ["LICEN[CS]E.*"]
+license-files = ["LICENSE."]
 classifiers = [
   'Development Status :: 5 - Production/Stable',
   'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
@@ -37,6 +37,5 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://pythonhosted.org/jobspy/"
 Repository = "https://github.com/josiahcarlson/jobs/"
 Changelog = "https://github.com/josiahcarlson/jobs/blob/master/changelog.txt"

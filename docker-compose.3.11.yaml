@@ -1,4 +1,4 @@
-version: '3.9'
+version: '3.3'
 services:
   jobs-test-3-11:
     build:
@@ -13,7 +13,6 @@ services:
       - redis-data-storage
   redis-data-storage:
     image: redis:7-bullseye
-    restart: always
     ports:
       - "6379:6379"
     command: redis-server --save ""
