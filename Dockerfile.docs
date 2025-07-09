@@ -12,11 +12,9 @@ COPY setup.py .
 COPY VERSION .
 COPY jobs.py .
 
-RUN true
 # COPY conf.py .
 COPY VERSION .
 # COPY index.rst .
-RUN true
 COPY README.rst .
 COPY _docs/ /app/_docs/
 

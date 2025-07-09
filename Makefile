@@ -65,8 +65,8 @@ upload:
 	python3.6 -m build --sdist
 	python3.6 -m twine upload --verbose dist/jobspy-`cat VERSION`.tar.gz
 
-docs:
-	python -c "import jobs; open('VERSION', 'wb').write(jobs.VERSION);open('README.rst', 'wb').write(jobs.__doc__);"
+docs: jobs.py
+	python3 -c "import jobs; open('VERSION', 'wb').write(jobs.VERSION.encode());open('README.rst', 'wb').write(jobs.__doc__.encode());"
 	docker-compose -f docker-compose.docs.yaml build
 	docker-compose -f docker-compose.docs.yaml run jobs-test-docs $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) /app/_build/html
 	cd docs/ && zip -r9 ../jobs_docs.zip .
