@@ -16,8 +16,7 @@ maintainers = [
 ]
 description = "Use Redis as a job input/output coordinator."
 readme = "README.rst"
-license = "GNU LGPL v2.1"
-license-files = ["LICENSE."]
+license-files = ["LICENSE"]
 classifiers = [
   'Development Status :: 5 - Production/Stable',
   'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',

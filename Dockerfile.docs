@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 RUN python3.11 -m pip install -r requirements.txt
-RUN python3.11 -m pip install sphinx twine
+RUN python3.11 -m pip install sphinx twine build setuptools
 
 # need jobs.py
 COPY setup.py .
@@ -13,7 +13,6 @@ COPY VERSION .
 COPY jobs.py .
 
 # COPY conf.py .
-COPY VERSION .
 # COPY index.rst .
 COPY README.rst .
 COPY _docs/ /app/_docs/

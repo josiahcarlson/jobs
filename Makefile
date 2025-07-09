@@ -62,8 +62,8 @@ test-%:
 upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python3.6 -m build --sdist
-	python3.6 -m twine upload --verbose dist/jobspy-`cat VERSION`.tar.gz
+	docker-compose -f docker-compose.docs.yaml run --rm -w /source jobs-test-docs python3.11 -m build --sdist
+	docker-compose -f docker-compose.docs.yaml run --rm -w /source jobs-test-docs python3.11 -m twine upload --skip-existing dist/*.tar.gz
 
 docs: jobs.py
 	python3 -c "import jobs; open('VERSION', 'wb').write(jobs.VERSION.encode());open('README.rst', 'wb').write(jobs.__doc__.encode());"

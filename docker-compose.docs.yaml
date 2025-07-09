@@ -8,3 +8,5 @@ services:
       PYTHONPATH: /app
     volumes:
       - /home/josiah/open-source/jobspy/docs/:/app/_build/html/:rw
+      - ./:/source/:rw
+      - ~/.pypirc/:/root/.pypirc/:ro
